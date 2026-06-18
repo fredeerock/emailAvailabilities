@@ -6,7 +6,7 @@
     <title>Availability Composer</title>
     <meta
       name="description"
-      content="Generate copy-ready Outlook meeting availability options from your calendar."
+      content="Generate copy-ready meeting availability options from your Google Calendar."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,10 +15,6 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
-    <script
-      src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"
-      crossorigin="anonymous"
-    ></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
@@ -27,7 +23,7 @@
 
     <main class="layout">
       <section class="hero card">
-        <p class="kicker">Google / Outlook Calendar -> Ready-to-send email options</p>
+        <p class="kicker">Google Calendar -> Ready-to-send email options</p>
         <h1>Availability Composer</h1>
         <p class="lede">
           Pull your calendar, choose meeting length and date span, then copy a polished list
@@ -41,78 +37,23 @@
           <span id="authBadge" class="badge">Not signed in</span>
         </div>
 
-        <p class="divider">Preferred: live Google Calendar mode</p>
-
-        <div class="grid two">
-          <label>
-            Google OAuth Client ID
-            <input
-              id="googleClientId"
-              type="text"
-              placeholder="Paste Google Web OAuth client ID"
-            />
-          </label>
-          <div class="source-note">
-            <p class="hint no-top">
-              This mode avoids Entra app registration and stays live as your calendar updates.
-            </p>
-          </div>
-        </div>
+        <label>
+          Google OAuth Client ID
+          <input
+            id="googleClientId"
+            type="text"
+            placeholder="Paste Google Web OAuth client ID"
+          />
+        </label>
 
         <div class="row">
           <button id="googleSignInBtn" class="btn primary">Sign in with Google</button>
           <button id="googleSignOutBtn" class="btn ghost" disabled>Disconnect Google</button>
         </div>
 
-        <p class="divider">Optional: live Outlook mode (requires Entra app)</p>
-
-        <div class="grid two">
-          <label>
-            Microsoft Application (client) ID
-            <input id="clientId" type="text" placeholder="Paste your Azure app client ID" />
-          </label>
-          <label>
-            Tenant
-            <select id="tenantId">
-              <option value="common">common (work/school + personal)</option>
-              <option value="organizations">organizations (work/school only)</option>
-              <option value="consumers">consumers (personal only)</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="row">
-          <button id="signInBtn" class="btn primary">Sign in with Microsoft</button>
-          <button id="signOutBtn" class="btn ghost" disabled>Sign out</button>
-        </div>
-
-        <p class="divider">Fallback: no-admin mode with an Outlook .ics export</p>
-
-        <div class="grid two">
-          <label>
-            Paste .ics text
-            <textarea
-              id="icsText"
-              rows="5"
-              placeholder="Paste calendar .ics content here if your school blocks app registration"
-            ></textarea>
-          </label>
-          <label>
-            Upload .ics file
-            <input id="icsFile" type="file" accept=".ics,text/calendar" />
-          </label>
-        </div>
-
-        <div class="row">
-          <button id="loadIcsTextBtn" class="btn ghost">Use pasted .ics text</button>
-          <button id="loadIcsFileBtn" class="btn ghost">Use uploaded .ics file</button>
-          <button id="clearIcsBtn" class="btn ghost">Clear .ics source</button>
-        </div>
-
         <p class="hint">
-          Redirect URI for Azure / Google Cloud Console:
-          <span id="redirectUriText" class="mono"></span><br />
-          Live site: <a href="https://fredeerock.github.io/emailAvailabilities/" target="_blank" rel="noopener">https://fredeerock.github.io/emailAvailabilities/</a>
+          Add this URL as an authorized JavaScript origin in Google Cloud Console:
+          <span id="redirectUriText" class="mono"></span>
         </p>
       </section>
 

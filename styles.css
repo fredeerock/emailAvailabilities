@@ -187,18 +187,7 @@ textarea:focus {
   color: var(--ink-muted);
 }
 
-.source-note {
-  display: grid;
-  align-content: center;
-  border: 1px dashed var(--stroke);
-  border-radius: 11px;
-  padding: 0.6rem 0.7rem;
-  background: rgba(255, 255, 255, 0.45);
-}
 
-.hint.no-top {
-  margin-top: 0;
-}
 
 .row.split {
   justify-content: space-between;
