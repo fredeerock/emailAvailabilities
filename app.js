@@ -84,18 +84,26 @@ function saveSettings() {
 }
 
 function onSaveUrl() {
-  const url = el.icalUrl.value.trim();
-  if (!url) {
+  const rawUrl = el.icalUrl.value.trim();
+  if (!rawUrl) {
     updateStatus("Paste your secret iCal URL first.", "warn");
     return;
   }
-  if (!url.includes("calendar.google.com") && !url.endsWith(".ics")) {
+
+  const normalizedUrl = normalizeGoogleCalendarUrl(rawUrl);
+  if (!normalizedUrl.includes("calendar.google.com") || !normalizedUrl.endsWith(".ics")) {
     updateStatus("That doesn't look like a Google Calendar iCal URL. Check and try again.", "warn");
     return;
   }
+
+  el.icalUrl.value = normalizedUrl;
   saveSettings();
   updateCalBadge();
-  updateStatus("Calendar link saved. Click Find my times.", "ok");
+  if (normalizedUrl !== rawUrl) {
+    updateStatus("Calendar link saved and converted to iCal format. Click Find my times.", "ok");
+  } else {
+    updateStatus("Calendar link saved. Click Find my times.", "ok");
+  }
 }
 
 function onClearUrl() {
@@ -110,6 +118,31 @@ function updateCalBadge() {
   el.calBadge.textContent = hasUrl ? "Link saved" : "No link saved";
   el.calBadge.classList.toggle("ok", hasUrl);
   el.generateBtn.disabled = !hasUrl;
+}
+
+function normalizeGoogleCalendarUrl(input) {
+  const value = String(input || "").trim();
+  if (!value) return "";
+
+  try {
+    const url = new URL(value);
+    const isGoogleHost = url.hostname === "calendar.google.com";
+
+    if (isGoogleHost && url.pathname.includes("/calendar/embed")) {
+      const src = url.searchParams.get("src");
+      if (src) {
+        return `https://calendar.google.com/calendar/ical/${encodeURIComponent(src)}/public/basic.ics`;
+      }
+    }
+
+    if (isGoogleHost && url.pathname.includes("/calendar/ical/") && url.pathname.endsWith(".ics")) {
+      return url.toString();
+    }
+  } catch {
+    return value;
+  }
+
+  return value;
 }
 
 function updateStatus(text, mode = "") {
