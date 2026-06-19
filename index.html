@@ -23,10 +23,10 @@
 
     <main class="layout">
       <section class="hero card">
-        <p class="kicker">Google Calendar -> Ready-to-send email options</p>
+        <p class="kicker">Google or Outlook Calendar -> Ready-to-send email options</p>
         <h1>Availability Composer</h1>
         <p class="lede">
-          Paste your Google Calendar secret link, choose meeting length and date span, then
+          Paste your Google or Outlook calendar iCal link, choose meeting length and date span, then
           copy a polished list of suggested times. No sign-in or cloud account needed.
         </p>
       </section>
@@ -38,21 +38,19 @@
         </div>
 
         <label>
-          Secret iCal address
+          Calendar iCal URL
           <input
             id="icalUrl"
             type="url"
-            placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
+            placeholder="https://.../basic.ics or webcal://..."
             spellcheck="false"
           />
         </label>
 
         <p class="hint">
-          In Google Calendar: <strong>Settings (gear icon) &rarr; Settings &rarr; pick your
-          calendar on the left sidebar &rarr; scroll to &ldquo;Secret address in iCal
-          format&rdquo; &rarr; copy that URL and paste it above.</strong><br />
-          The link is fetched live each time you generate, so it always reflects your current
-          calendar.
+          Google: <strong>Settings &rarr; select calendar &rarr; Secret address in iCal format</strong>.<br />
+          Outlook: <strong>Publish calendar</strong> and copy the .ics URL.<br />
+          The link is fetched live each time you generate, so it reflects your current calendar.
         </p>
 
         <div class="row">

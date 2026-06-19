@@ -91,8 +91,8 @@ function onSaveUrl() {
   }
 
   const normalizedUrl = normalizeGoogleCalendarUrl(rawUrl);
-  if (!normalizedUrl.includes("calendar.google.com") || !normalizedUrl.endsWith(".ics")) {
-    updateStatus("That doesn't look like a Google Calendar iCal URL. Check and try again.", "warn");
+  if (!looksLikeIcalUrl(normalizedUrl)) {
+    updateStatus("That doesn't look like an iCal URL (.ics or webcal://). Check and try again.", "warn");
     return;
   }
 
@@ -124,6 +124,10 @@ function normalizeGoogleCalendarUrl(input) {
   const value = String(input || "").trim();
   if (!value) return "";
 
+  if (value.toLowerCase().startsWith("webcal://")) {
+    return `https://${value.slice("webcal://".length)}`;
+  }
+
   try {
     const url = new URL(value);
     const isGoogleHost = url.hostname === "calendar.google.com";
@@ -143,6 +147,20 @@ function normalizeGoogleCalendarUrl(input) {
   }
 
   return value;
+}
+
+function looksLikeIcalUrl(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) {
+    return false;
+  }
+  if (text.startsWith("webcal://")) {
+    return true;
+  }
+  if (!text.startsWith("https://") && !text.startsWith("http://")) {
+    return false;
+  }
+  return text.includes(".ics") || text.includes("/ical/") || text.includes("/calendar/");
 }
 
 function updateStatus(text, mode = "") {
