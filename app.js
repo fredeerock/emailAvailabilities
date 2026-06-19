@@ -1,6 +1,9 @@
 const STORAGE_KEY = "availability-composer-settings-v4";
-// Free CORS proxy — no account required. Only the iCal URL is sent through it.
-const CORS_PROXY = "https://corsproxy.io/?url=";
+const PROXY_BUILDERS = [
+  (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url) => `https://cors.isomorphic-git.org/${url}`,
+];
 
 const el = {
   icalUrl: document.getElementById("icalUrl"),
@@ -203,8 +206,18 @@ async function onGenerate() {
     validateSettings(settings);
     saveSettings();
 
-    const icalUrl = el.icalUrl.value.trim();
-    if (!icalUrl) throw new Error("Paste and save your calendar iCal URL first.");
+    const rawUrl = el.icalUrl.value.trim();
+    if (!rawUrl) throw new Error("Paste and save your calendar iCal URL first.");
+
+    // Re-normalize on generate in case older saved values predate URL conversion logic.
+    const icalUrl = normalizeCalendarUrl(rawUrl);
+    if (!looksLikeIcalUrl(icalUrl)) {
+      throw new Error("Saved URL is not a valid iCal feed URL.");
+    }
+    if (icalUrl !== rawUrl) {
+      el.icalUrl.value = icalUrl;
+      saveSettings();
+    }
 
     updateStatus("Fetching your calendar...");
 
@@ -235,17 +248,33 @@ async function fetchIcalViaProxy(icalUrl) {
   let lastStatus = "";
 
   for (const candidate of candidates) {
-    const proxyUrl = CORS_PROXY + encodeURIComponent(candidate);
-    const response = await fetch(proxyUrl);
-    lastStatus = String(response.status);
-
-    if (!response.ok) {
-      continue;
+    try {
+      const directResponse = await fetch(candidate);
+      if (directResponse.ok) {
+        const directText = await directResponse.text();
+        if (directText.includes("BEGIN:VCALENDAR")) {
+          return directText;
+        }
+      } else {
+        lastStatus = String(directResponse.status);
+      }
+    } catch {
+      // Most feeds block browser CORS on direct fetch; proxy fallbacks below.
     }
 
-    const text = await response.text();
-    if (text.includes("BEGIN:VCALENDAR")) {
-      return text;
+    for (const buildProxyUrl of PROXY_BUILDERS) {
+      const proxyUrl = buildProxyUrl(candidate);
+      const response = await fetch(proxyUrl);
+      lastStatus = String(response.status);
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const text = await response.text();
+      if (text.includes("BEGIN:VCALENDAR")) {
+        return text;
+      }
     }
   }
 
