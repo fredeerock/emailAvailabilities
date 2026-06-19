@@ -131,7 +131,7 @@ function normalizeGoogleCalendarUrl(input) {
     if (isGoogleHost && url.pathname.includes("/calendar/embed")) {
       const src = url.searchParams.get("src");
       if (src) {
-        return `https://calendar.google.com/calendar/ical/${encodeURIComponent(src)}/public/basic.ics`;
+        return `https://calendar.google.com/calendar/ical/${src}/public/basic.ics`;
       }
     }
 
@@ -188,16 +188,79 @@ async function onGenerate() {
 }
 
 async function fetchIcalViaProxy(icalUrl) {
-  const proxyUrl = CORS_PROXY + encodeURIComponent(icalUrl);
-  const response = await fetch(proxyUrl);
-  if (!response.ok) {
-    throw new Error(`Could not fetch calendar (${response.status}). Check your iCal URL is correct and public.`);
+  const candidates = buildIcalUrlCandidates(icalUrl);
+  let lastStatus = "";
+
+  for (const candidate of candidates) {
+    const proxyUrl = CORS_PROXY + encodeURIComponent(candidate);
+    const response = await fetch(proxyUrl);
+    lastStatus = String(response.status);
+
+    if (!response.ok) {
+      continue;
+    }
+
+    const text = await response.text();
+    if (text.includes("BEGIN:VCALENDAR")) {
+      return text;
+    }
   }
-  const text = await response.text();
-  if (!text.includes("BEGIN:VCALENDAR")) {
-    throw new Error("The URL did not return a valid calendar. Make sure you copied the secret iCal address from Google Calendar.");
+
+  if (lastStatus) {
+    throw new Error(`Could not fetch calendar (${lastStatus}). Check your iCal URL is correct and public.`);
   }
-  return text;
+
+  throw new Error("Could not fetch calendar. Check your iCal URL and try again.");
+}
+
+function buildIcalUrlCandidates(inputUrl) {
+  const candidates = [];
+  const seen = new Set();
+
+  function add(url) {
+    const v = String(url || "").trim();
+    if (!v || seen.has(v)) {
+      return;
+    }
+    seen.add(v);
+    candidates.push(v);
+  }
+
+  add(inputUrl);
+
+  try {
+    const url = new URL(inputUrl);
+    const isGoogleHost = url.hostname === "calendar.google.com";
+
+    if (isGoogleHost && url.pathname.includes("/calendar/embed")) {
+      const src = url.searchParams.get("src");
+      if (src) {
+        add(`https://calendar.google.com/calendar/ical/${src}/public/basic.ics`);
+        add(`https://calendar.google.com/calendar/ical/${src}/public/full.ics`);
+        add(`https://calendar.google.com/calendar/ical/${encodeURIComponent(src)}/public/basic.ics`);
+        add(`https://calendar.google.com/calendar/ical/${encodeURIComponent(src)}/public/full.ics`);
+      }
+    }
+
+    const match = url.pathname.match(/^\/calendar\/ical\/([^/]+)\/([^/]+)\/(basic|full)\.ics$/);
+    if (isGoogleHost && match) {
+      const [, rawId, visibility, detail] = match;
+      const decodedId = decodeURIComponent(rawId);
+      const encodedId = encodeURIComponent(decodedId);
+
+      add(`https://calendar.google.com/calendar/ical/${decodedId}/${visibility}/${detail}.ics`);
+      add(`https://calendar.google.com/calendar/ical/${encodedId}/${visibility}/${detail}.ics`);
+
+      add(`https://calendar.google.com/calendar/ical/${decodedId}/${visibility}/basic.ics`);
+      add(`https://calendar.google.com/calendar/ical/${decodedId}/${visibility}/full.ics`);
+      add(`https://calendar.google.com/calendar/ical/${encodedId}/${visibility}/basic.ics`);
+      add(`https://calendar.google.com/calendar/ical/${encodedId}/${visibility}/full.ics`);
+    }
+  } catch {
+    return candidates;
+  }
+
+  return candidates;
 }
 
 function readSettings() {
