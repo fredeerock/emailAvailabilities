@@ -48,7 +48,7 @@ function applySavedSettings() {
     maxOptions: "5",
     dayStart: "09:00",
     dayEnd: "17:00",
-    slotStep: "15",
+    slotStep: "30",
     leadHours: "2",
     weekdaysOnly: true,
   };
