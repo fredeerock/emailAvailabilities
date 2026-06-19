@@ -90,7 +90,7 @@ function onSaveUrl() {
     return;
   }
 
-  const normalizedUrl = normalizeGoogleCalendarUrl(rawUrl);
+  const normalizedUrl = normalizeCalendarUrl(rawUrl);
   if (!looksLikeIcalUrl(normalizedUrl)) {
     updateStatus("That doesn't look like an iCal URL (.ics or webcal://). Check and try again.", "warn");
     return;
@@ -120,7 +120,7 @@ function updateCalBadge() {
   el.generateBtn.disabled = !hasUrl;
 }
 
-function normalizeGoogleCalendarUrl(input) {
+function normalizeCalendarUrl(input) {
   const value = String(input || "").trim();
   if (!value) return "";
 
@@ -130,6 +130,19 @@ function normalizeGoogleCalendarUrl(input) {
 
   try {
     const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+
+    // Outlook's "addsubscription" link wraps the real feed URL inside ?url=
+    if (host === "outlook.live.com" && url.searchParams.has("url")) {
+      const wrapped = url.searchParams.get("url") || "";
+      if (wrapped.toLowerCase().startsWith("webcal://")) {
+        return `https://${wrapped.slice("webcal://".length)}`;
+      }
+      if (wrapped) {
+        return wrapped;
+      }
+    }
+
     const isGoogleHost = url.hostname === "calendar.google.com";
 
     if (isGoogleHost && url.pathname.includes("/calendar/embed")) {
@@ -140,6 +153,10 @@ function normalizeGoogleCalendarUrl(input) {
     }
 
     if (isGoogleHost && url.pathname.includes("/calendar/ical/") && url.pathname.endsWith(".ics")) {
+      return url.toString();
+    }
+
+    if (url.pathname.toLowerCase().endsWith(".ics")) {
       return url.toString();
     }
   } catch {
@@ -179,7 +196,7 @@ async function onGenerate() {
     saveSettings();
 
     const icalUrl = el.icalUrl.value.trim();
-    if (!icalUrl) throw new Error("Paste and save your Google Calendar secret iCal URL first.");
+    if (!icalUrl) throw new Error("Paste and save your calendar iCal URL first.");
 
     updateStatus("Fetching your calendar...");
 
