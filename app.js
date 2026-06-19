@@ -25,6 +25,8 @@ const el = {
   copyBtn: document.getElementById("copyBtn"),
 };
 
+let lastFetchDiagnostics = [];
+
 init();
 
 function init() {
@@ -200,6 +202,7 @@ function updateStatus(text, mode = "") {
 async function onGenerate() {
   el.copyBtn.disabled = true;
   el.resultText.value = "";
+  lastFetchDiagnostics = [];
 
   try {
     const settings = readSettings();
@@ -239,7 +242,9 @@ async function onGenerate() {
     el.copyBtn.disabled = false;
     updateStatus(`Generated ${picks.length} options. Copy and paste into your email.`, "ok");
   } catch (error) {
-    updateStatus(formatError(error), "warn");
+    const baseMessage = formatError(error);
+    const diagnostics = formatFetchDiagnostics(lastFetchDiagnostics);
+    updateStatus(diagnostics ? `${baseMessage} ${diagnostics}` : baseMessage, "warn");
   }
 }
 
@@ -253,27 +258,38 @@ async function fetchIcalViaProxy(icalUrl) {
       if (directResponse.ok) {
         const directText = await directResponse.text();
         if (directText.includes("BEGIN:VCALENDAR")) {
+          lastFetchDiagnostics.push(`direct:ok`);
           return directText;
         }
+        lastFetchDiagnostics.push(`direct:non-calendar`);
       } else {
         lastStatus = String(directResponse.status);
+        lastFetchDiagnostics.push(`direct:${directResponse.status}`);
       }
     } catch {
       // Most feeds block browser CORS on direct fetch; proxy fallbacks below.
+      lastFetchDiagnostics.push("direct:cors");
     }
 
     for (const buildProxyUrl of PROXY_BUILDERS) {
       const proxyUrl = buildProxyUrl(candidate);
-      const response = await fetch(proxyUrl);
-      lastStatus = String(response.status);
+      try {
+        const response = await fetch(proxyUrl);
+        lastStatus = String(response.status);
 
-      if (!response.ok) {
-        continue;
-      }
+        if (!response.ok) {
+          lastFetchDiagnostics.push(`proxy:${response.status}`);
+          continue;
+        }
 
-      const text = await response.text();
-      if (text.includes("BEGIN:VCALENDAR")) {
-        return text;
+        const text = await response.text();
+        if (text.includes("BEGIN:VCALENDAR")) {
+          lastFetchDiagnostics.push("proxy:ok");
+          return text;
+        }
+        lastFetchDiagnostics.push("proxy:non-calendar");
+      } catch {
+        lastFetchDiagnostics.push("proxy:error");
       }
     }
   }
@@ -283,6 +299,15 @@ async function fetchIcalViaProxy(icalUrl) {
   }
 
   throw new Error("Could not fetch calendar. Check your iCal URL and try again.");
+}
+
+function formatFetchDiagnostics(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return "";
+  }
+  const short = items.slice(0, 8).join(", ");
+  const suffix = items.length > 8 ? ", ..." : "";
+  return `(attempts: ${short}${suffix})`;
 }
 
 function buildIcalUrlCandidates(inputUrl) {
