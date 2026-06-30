@@ -72,50 +72,48 @@ final class AvailabilityViewModel: ObservableObject {
 
     private let eventStore = EKEventStore()
 
-    func generateAvailability() {
-        Task {
-            do {
-                try validateInputs()
-                try await ensureCalendarAccess()
-                loadCalendarsIfNeeded()
+    func generateAvailability() async {
+        do {
+            try validateInputs()
+            try await ensureCalendarAccess()
+            loadCalendarsIfNeeded()
 
-                let selectedIDs = Set(calendars.filter { $0.isSelected }.map { $0.id })
-                if selectedIDs.isEmpty {
-                    throw NSError(domain: "Calendar", code: 1, userInfo: [NSLocalizedDescriptionKey: "Select at least one calendar."])
-                }
-
-                let cal = Calendar.current
-                let rangeStart = cal.startOfDay(for: startDate)
-                guard let endInclusiveDay = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: endDate)) else {
-                    throw NSError(domain: "Range", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid end date"])
-                }
-
-                let busyBlocks = fetchBusyBlocks(start: rangeStart, end: endInclusiveDay, selectedIDs: selectedIDs)
-                if outputMode == .suggestedOptions {
-                    let options = buildAvailability(rangeStart: rangeStart, rangeEnd: endInclusiveDay, busy: busyBlocks)
-
-                    if options.isEmpty {
-                        statusText = "No available slots in selected range."
-                        outputText = ""
-                        return
-                    }
-
-                    outputText = formatOutput(options)
-                    statusText = "Generated \(options.count) options."
-                } else {
-                    let stretches = buildFreeStretches(rangeStart: rangeStart, rangeEnd: endInclusiveDay, busy: busyBlocks)
-                    if stretches.isEmpty {
-                        statusText = "No free stretches meet your minimum in selected range."
-                        outputText = ""
-                        return
-                    }
-
-                    outputText = formatFreeStretchOutput(stretches)
-                    statusText = "Found \(stretches.count) free stretches."
-                }
-            } catch {
-                statusText = error.localizedDescription
+            let selectedIDs = Set(calendars.filter { $0.isSelected }.map { $0.id })
+            if selectedIDs.isEmpty {
+                throw NSError(domain: "Calendar", code: 1, userInfo: [NSLocalizedDescriptionKey: "Select at least one calendar."])
             }
+
+            let cal = Calendar.current
+            let rangeStart = cal.startOfDay(for: startDate)
+            guard let endInclusiveDay = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: endDate)) else {
+                throw NSError(domain: "Range", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid end date"])
+            }
+
+            let busyBlocks = fetchBusyBlocks(start: rangeStart, end: endInclusiveDay, selectedIDs: selectedIDs)
+            if outputMode == .suggestedOptions {
+                let options = buildAvailability(rangeStart: rangeStart, rangeEnd: endInclusiveDay, busy: busyBlocks)
+
+                if options.isEmpty {
+                    statusText = "No available slots in selected range."
+                    outputText = ""
+                    return
+                }
+
+                outputText = formatOutput(options)
+                statusText = "Generated \(options.count) options."
+            } else {
+                let stretches = buildFreeStretches(rangeStart: rangeStart, rangeEnd: endInclusiveDay, busy: busyBlocks)
+                if stretches.isEmpty {
+                    statusText = "No free stretches meet your minimum in selected range."
+                    outputText = ""
+                    return
+                }
+
+                outputText = formatFreeStretchOutput(stretches)
+                statusText = "Found \(stretches.count) free stretches."
+            }
+        } catch {
+            statusText = error.localizedDescription
         }
     }
 
@@ -187,8 +185,28 @@ final class AvailabilityViewModel: ObservableObject {
         }
 
         if #available(macOS 14.0, *) {
-            let granted = try await eventStore.requestFullAccessToEvents()
-            if !granted || !hasCalendarReadAccess() {
+            // Request full access first, then fall back to legacy API if status is still undecided.
+            let fullGranted = try await eventStore.requestFullAccessToEvents()
+            if fullGranted && hasCalendarReadAccess() {
+                return
+            }
+
+            if EKEventStore.authorizationStatus(for: .event) == .notDetermined {
+                let legacyGranted = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
+                    eventStore.requestAccess(to: .event) { granted, error in
+                        if let error {
+                            continuation.resume(throwing: error)
+                        } else {
+                            continuation.resume(returning: granted)
+                        }
+                    }
+                }
+                if legacyGranted && hasCalendarReadAccess() {
+                    return
+                }
+            }
+
+            if !hasCalendarReadAccess() {
                 throw NSError(domain: "Calendar", code: 1, userInfo: [NSLocalizedDescriptionKey: "Calendar access denied. Enable Quick Availability in System Settings > Privacy & Security > Calendars."])
             }
         } else {
@@ -876,7 +894,9 @@ struct ContentView: View {
 
                 HStack(spacing: 10) {
                     Button {
-                        vm.generateAvailability()
+                        Task {
+                            await vm.generateAvailability()
+                        }
                     } label: {
                         Label("Generate", systemImage: "sparkles")
                             .frame(maxWidth: .infinity)
