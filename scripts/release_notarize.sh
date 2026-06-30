@@ -17,6 +17,16 @@ PROFILE_NAME="quickavailability-notary"
 ZIP_NAME="Quick Availability.zip"
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+STAGE_DIR="$(mktemp -d /tmp/quickavailability-release.XXXXXX)"
+APP_PATH="$STAGE_DIR/$APP_NAME"
+ZIP_PATH="$ROOT_DIR/$ZIP_NAME"
+
+cleanup() {
+  rm -rf "$STAGE_DIR"
+}
+
+trap cleanup EXIT
+
 cd "$ROOT_DIR"
 
 if [[ "${1:-}" == "--init-credentials" ]]; then
@@ -43,12 +53,12 @@ echo "Building release binary..."
 swift build -c release
 
 echo "Creating app bundle..."
-rm -rf "$APP_NAME" "$ZIP_NAME"
-mkdir -p "$APP_NAME/Contents/MacOS" "$APP_NAME/Contents/Resources"
-cp ".build/release/$BIN_NAME" "$APP_NAME/Contents/MacOS/$BIN_NAME"
-cp "assets/AppIcon.icns" "$APP_NAME/Contents/Resources/AppIcon.icns"
+rm -rf "$APP_PATH" "$ZIP_PATH" "$ROOT_DIR/$APP_NAME"
+mkdir -p "$APP_PATH/Contents/MacOS" "$APP_PATH/Contents/Resources"
+cp ".build/release/$BIN_NAME" "$APP_PATH/Contents/MacOS/$BIN_NAME"
+cp "assets/AppIcon.icns" "$APP_PATH/Contents/Resources/AppIcon.icns"
 
-cat > "$APP_NAME/Contents/Info.plist" <<PLIST
+cat > "$APP_PATH/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -81,30 +91,37 @@ cat > "$APP_NAME/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-chmod +x "$APP_NAME/Contents/MacOS/$BIN_NAME"
-xattr -cr "$APP_NAME"
+chmod +x "$APP_PATH/Contents/MacOS/$BIN_NAME"
+
+# Remove extended attributes that can break codesign sealing.
+xattr -cr "$APP_PATH" || true
+for attr in com.apple.FinderInfo com.apple.fileprovider.fpfs#P com.apple.ResourceFork com.apple.macl com.apple.provenance; do
+  xattr -dr "$attr" "$APP_PATH" 2>/dev/null || true
+done
 
 echo "Signing with Developer ID..."
 codesign --force --deep --options runtime --timestamp \
   --sign "$DEV_ID" \
-  "$APP_NAME"
+  "$APP_PATH"
 
 echo "Verifying signature..."
-codesign --verify --deep --strict --verbose=2 "$APP_NAME"
+codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
 echo "Creating notarization zip..."
-ditto -c -k --keepParent "$APP_NAME" "$ZIP_NAME"
+ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
 
 echo "Submitting for notarization and waiting for result..."
-xcrun notarytool submit "$ZIP_NAME" \
+xcrun notarytool submit "$ZIP_PATH" \
   --keychain-profile "$PROFILE_NAME" \
   --wait
 
 echo "Stapling notarization ticket..."
-xcrun stapler staple "$APP_NAME"
+xcrun stapler staple "$APP_PATH"
 
 echo "Validating stapled ticket and Gatekeeper assessment..."
-xcrun stapler validate "$APP_NAME"
-spctl --assess --type execute --verbose=4 "$APP_NAME"
+xcrun stapler validate "$APP_PATH"
+spctl --assess --type execute --verbose=4 "$APP_PATH"
+
+ditto "$APP_PATH" "$ROOT_DIR/$APP_NAME"
 
 echo "Done: $APP_NAME is signed, notarized, and stapled."
