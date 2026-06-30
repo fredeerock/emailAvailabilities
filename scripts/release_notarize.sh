@@ -85,6 +85,8 @@ cat > "$APP_PATH/Contents/Info.plist" <<PLIST
   <string>13.0</string>
   <key>NSCalendarsUsageDescription</key>
   <string>This app reads your calendar events to generate meeting availability options.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>This app reads your calendar events to generate meeting availability options.</string>
   <key>NSHighResolutionCapable</key>
   <true/>
 </dict>

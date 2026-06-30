@@ -185,10 +185,14 @@ final class AvailabilityViewModel: ObservableObject {
     }
 
     private func ensureCalendarAccess() async throws {
+        if hasCalendarReadAccess() {
+            return
+        }
+
         if #available(macOS 14.0, *) {
             let granted = try await eventStore.requestFullAccessToEvents()
-            if !granted {
-                throw NSError(domain: "Calendar", code: 1, userInfo: [NSLocalizedDescriptionKey: "Calendar access denied."])
+            if !granted || !hasCalendarReadAccess() {
+                throw NSError(domain: "Calendar", code: 1, userInfo: [NSLocalizedDescriptionKey: "Calendar access denied. Enable Quick Availability in System Settings > Privacy & Security > Calendars."])
             }
         } else {
             let granted = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
@@ -200,10 +204,18 @@ final class AvailabilityViewModel: ObservableObject {
                     }
                 }
             }
-            if !granted {
-                throw NSError(domain: "Calendar", code: 1, userInfo: [NSLocalizedDescriptionKey: "Calendar access denied."])
+            if !granted || !hasCalendarReadAccess() {
+                throw NSError(domain: "Calendar", code: 1, userInfo: [NSLocalizedDescriptionKey: "Calendar access denied. Enable Quick Availability in System Settings > Privacy & Security > Calendars."])
             }
         }
+    }
+
+    private func hasCalendarReadAccess() -> Bool {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        if #available(macOS 14.0, *) {
+            return status == .fullAccess || status == .authorized
+        }
+        return status == .authorized
     }
 
     private func fetchBusyBlocks(start: Date, end: Date, selectedIDs: Set<String>) -> [BusyBlock] {
