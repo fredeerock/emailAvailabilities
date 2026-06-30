@@ -132,13 +132,10 @@ final class AvailabilityViewModel: ObservableObject {
     }
 
     func preloadCalendarsOnLaunch() {
-        Task {
-            do {
-                try await ensureCalendarAccess()
-                loadCalendarsIfNeeded()
-            } catch {
-                statusText = error.localizedDescription
-            }
+        if hasCalendarReadAccess() {
+            loadCalendarsIfNeeded()
+        } else {
+            statusText = "Click Generate to grant calendar access."
         }
     }
 
