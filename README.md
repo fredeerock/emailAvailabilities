@@ -34,13 +34,6 @@ When the app opens, macOS should ask for Calendar access.
 
 - Click `Allow` so the app can detect your busy times.
 
-If you do not see the prompt or previously denied it:
-
-1. Open `System Settings`
-2. Go to `Privacy & Security`
-3. Open `Calendars`
-4. Enable `Quick Availability`
-
 ## How To Use
 
 1. Set `Start date` and `End date`.
